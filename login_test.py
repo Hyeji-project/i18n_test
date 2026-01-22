@@ -10,15 +10,27 @@ def main(): #프로그램의 시작점
 
     
 
+        # 메인 페이지 이동
+        page.goto("http://hshopfront.samsung.com/nl/")
+
+    # hshopfront 로그인
+        page.click('input#username')
+        page.fill('input#username', 'qauser')
+        page.click('input#password')
+        page.fill('input#password', 'qauser1!')
+        page.click('button#submit-button')
+
         #5 테스트 할 페이지 접속
-        page.goto("https://www.samsung.com/nl/")
+        
         page.wait_for_timeout(1000)#1초 대기
         #쿠기 동의 팝업 클릭
         page.click("#truste-consent-button")
         #human icon 마우스 오버
-        page.locator('button[an-la="login"]').hover()
+        page.locator('a.nv00-gnb__utility-btn.mobile-only.loginBtn').hover()
+        
         #sign in 클릭릭
-        page.locator("a.loginBtn.nv00-gnb-v4__utility-menu--sign-in").click()
+        page.locator("a.nv00-gnb__utility-user-menu-link.loginBtn").click()
+    
         # 이메일 입력
         page.fill("#account", "mypage_nl1@ruu.kr")
         page.locator('button[data-log-id="next"]').click()

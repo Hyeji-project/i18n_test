@@ -1,35 +1,98 @@
 # 1. 필요한 라이브러리 불러오기기
 from playwright.sync_api import sync_playwright #브라우저 자동화 도구
 import pandas as pd # 엑셀 읽는 라이브러리리
-import json # JSON 파일 읽는 라이브러리리
+from openpyxl import load_workbook # 엑셀 데이터 추출
+from datetime import datetime
+import re
+
+def normalize_html(text: str) -> str:
+    if not text:
+        return ""
+
+    text = text.lower().strip()
+
+    # <br>, <br/>, <br /> → 공백
+    text = re.sub(r"<br\s*/?>", " ", text)
+
+    # 연속 공백 제거
+    text = re.sub(r"\s+", " ", text)
+
+    return text
+
+
+# ===============================
+#  helper 함수
+# ===============================
+def i18n_match(expected: str, actual: str) -> bool:
+    """
+    expected: 엑셀 값 (placeholder 포함)
+    actual: i18n API 값
+    """
+
+    if not expected or not actual:
+        return False
+
+    expected = normalize_html(expected)
+    actual = normalize_html(actual)
+
+    # placeholder 대응
+    pattern = re.escape(expected)
+    pattern = re.sub(r"\\\{.*?\\\}", ".+", pattern)
+
+    return re.fullmatch(pattern, actual) is not None
+
+
+# 2.엑셀에서 "노란색 셀" i18n 추출
+def extract_yellow_i18n_pairs(excel_path: str, sheet_name: str):
+    wb = load_workbook(excel_path, data_only=True)
+    ws = wb[sheet_name]
+
+    results = []
+
+    def is_yellow(cell):
+        if cell.fill and cell.fill.start_color:
+            return cell.fill.start_color.rgb in ("FFFFFF00", "FFFF00")
+        return False
+
+    # H열(original = index 7), K열(expected = index 10)
+    for row in ws.iter_rows(min_row=2):
+        original_cell = row[7]
+        expected_cell = row[10]
+
+        original = original_cell.value
+        expected = expected_cell.value
+
+        if not original or not expected:
+            continue
+
+        if is_yellow(original_cell) or is_yellow(expected_cell):
+            results.append({
+                "original": str(original).strip(),
+                "translation": str(expected).strip()
+            })
+
+    return pd.DataFrame(results)
+
+
+#3. 메인 로직
 
 def main(): #프로그램의 시작점점
     print("i18n 테스트 시작")
 
-    #2. 엑셀 파일 읽기
-    df =pd.read_excel("i18n.xlsx")
+     # 3-1. 엑셀 → 노란색 셀만 추출
+    df_pairs = extract_yellow_i18n_pairs(
+        excel_path="i18n.xlsx",
+        sheet_name="NL"   # 🔴 국가 코드 시트명
+    )
 
-    # 2.1. 필요한 컬럼만 선택(원문/번역본)
-    df_pairs = df.iloc[:, [0,3]]
+    print("정제된 i18n 비교 대상")
 
-    #2.5. 컬럼 이름 정리
-    df_pairs.columns = ["original", "translation"]
-
-    #2.2. 번역 없는 row 제거
-    df_pairs = df_pairs.dropna()
-
-    #2.3. 소문자 key 제거
-    df_pairs =df_pairs[df_pairs["original"].str[0].str.isupper()]
-
-    #2.4. URL,N 제거
-    df_pairs = df_pairs[~df_pairs["original"].str.startswith("/")]
-    df_pairs = df_pairs[df_pairs["original"] !="N"]
+    excel_dict = dict(
+        zip(df_pairs["original"], df_pairs["translation"])
+    )
 
 
-    print("정제된 i18n 비교 대상 : ")
-    print(df_pairs)
-
-    # Playwright 실행
+    # 4. Playwright 실행
     i18n_dict = {} # 응답 저장 딕셔너리
 
     with sync_playwright() as p:# playwright 엔진 실행, with -> 끝나면 자동 정리
@@ -44,7 +107,7 @@ def main(): #프로그램의 시작점점
             if "i18n" in url :
                 # 이미 저장했으면 다시 파싱하지 않음
                 if i18n_dict:
-                 return
+                    return
                 try:
                     data = response.json() 
                     if isinstance(data, dict):
@@ -84,45 +147,57 @@ def main(): #프로그램의 시작점점
 
     print("i18n API key 개수:", len(i18n_dict))
 
-    # 엑셀 VS i18n_dict 비교
+    # 6. 엑셀 VS i18n_dict 비교
 
     results = []
 
-    for _, row in df_pairs.iterrows():
-        original = row["original"].strip()
-        expected = row["translation"].strip()
+    for key, value in i18n_dict.items():
+        api_value = value.strip()
 
-        #key없음
+        if key in excel_dict:
+            expected = excel_dict[key].strip()
+
+            if i18n_match(expected, api_value):
+                result = "PASS"
+            else:
+                result = "FAIL"
+
+            results.append({
+                "original": key,
+                "expected": expected,
+                "key": key,
+                "value": api_value,
+                "result": result
+        })
+        else:
+        # API에만 존재
+            results.append({
+                "original": "",
+                "expected": "",
+                "key": key,
+                "value": api_value,
+                "result": "Only API"
+        })
+
+    # 2️⃣ 엑셀에만 존재하는 key (FRD only)
+    for original, expected in excel_dict.items():
         if original not in i18n_dict:
             results.append({
-                "original":original,
-                "expected" : expected,
-                "key":"",
-                "value":"",
-                "result": "MISSING"
-            })
-            continue
-        actual_value = i18n_dict[original].strip()
-
-        if actual_value == expected:
-            result = "PASS"
-        else:
-            result="FAIL"
-
-        results.append({
-            "original":original,
-            "expected" : expected,
-            "key":original,
-            "value":actual_value,
-            "result": result
+                "original": original,
+                "expected": expected,
+                "key": "",
+                "value": "",
+                "result": "Only FRD"
         })
 # 결과를 엑셀 저장
     result_df = pd.DataFrame(
         results,
         columns=["original","expected","key","value","result"]
     )
-    result_df.to_excel("i18n_compare_result.xlsx", index=False)
-    print("i18n 비교 결과 엑셀 생성 완료료")
+    result_df.to_excel("i18n_compare_result.xlsx", index=False) 
+    print("i18n 비교 결과 엑셀 생성 완료")
+
+    
 
 # 이 파일을 직접 실행했을 떄만 main() 함수 실행
 if __name__ == "__main__":
