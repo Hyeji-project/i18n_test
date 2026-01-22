@@ -9,12 +9,15 @@ def normalize_html(text: str) -> str:
     if not text:
         return ""
 
-    text = text.lower().strip()
+    text = text.lower()
 
     # <br>, <br/>, <br /> → 공백
     text = re.sub(r"<br\s*/?>", " ", text)
 
-    # 연속 공백 제거
+    # 양쪽 공백 제거
+    text = text.strip()
+
+    # 모든 공백을 단일 스페이스로
     text = re.sub(r"\s+", " ", text)
 
     return text
@@ -37,7 +40,9 @@ def i18n_match(expected: str, actual: str) -> bool:
 
     # placeholder 대응
     pattern = re.escape(expected)
-    pattern = re.sub(r"\\\{.*?\\\}", ".+", pattern)
+    pattern = re.sub(r"\\\{.*?\\\}", r"[^ ]+", pattern)
+
+    pattern = pattern.replace(r"\ ", r"\s+")
 
     return re.fullmatch(pattern, actual) is not None
 
@@ -127,7 +132,7 @@ def main(): #프로그램의 시작점점
         page.click("#truste-consent-button")
         #human icon 마우스 오버
         page.locator('button[an-la="login"]').hover()
-        #sign in 클릭릭
+        #sign in 클릭
         page.locator("a.loginBtn.nv00-gnb-v4__utility-menu--sign-in").click()
         # 이메일 입력
         page.fill("#account", "mypage_nl1@ruu.kr")

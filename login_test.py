@@ -40,7 +40,7 @@ def main(): #프로그램의 시작점
         page.click('button[data-testid="test-button-notnow"]')
         page.click('button[data-testid="test-button-notnow"]')
         
-        page.wait_for_timeout(3000)#3초 대기
+        page.wait_for_timeout(5000)#3초 대기
 
         page.goto("https://www.samsung.com/nl/mypage/")
         page.wait_for_timeout(5000)#5초 대기
