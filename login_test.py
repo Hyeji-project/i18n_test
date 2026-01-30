@@ -11,7 +11,7 @@ def main(): #프로그램의 시작점
     
 
         # 메인 페이지 이동
-        page.goto("http://hshopfront.samsung.com/nl/")
+        page.goto("http://hshopfront.samsung.com/vn/")
 
     # hshopfront 로그인
         page.click('input#username')
@@ -23,27 +23,39 @@ def main(): #프로그램의 시작점
         #5 테스트 할 페이지 접속
         
         page.wait_for_timeout(1000)#1초 대기
-        #쿠기 동의 팝업 클릭
-        page.click("#truste-consent-button")
-        #human icon 마우스 오버
-        page.locator('a.nv00-gnb__utility-btn.mobile-only.loginBtn').hover()
+        #쿠키 동의 팝업 클릭 (있을 때만 클릭하도록 수정)
+        if page.locator("#truste-consent-button").is_visible(timeout=5000):
+            page.click("#truste-consent-button")
+        else:
+            print("쿠키 동의 팝업이 나타나지 않아 건너뜁니다.")
+        #human icon 마우스 오버 (데스크탑/모바일 공용 셀렉터 사용)
+        login_btn = page.locator('a.loginBtn:visible, button[an-la="login"]:visible').first
+        login_btn.hover()
+        page.wait_for_timeout(1000) # 메뉴가 나타날 때까지 짧게 대기
         
-        #sign in 클릭릭
-        page.locator("a.nv00-gnb__utility-user-menu-link.loginBtn").click()
+        # Sign in 클릭 (더 포괄적인 셀렉터 사용)
+        sign_in_link = page.locator('a.loginBtn:visible, a.nv00-gnb-v4__utility-menu--sign-in:visible').last
+        sign_in_link.click()
     
         # 이메일 입력
-        page.fill("#account", "mypage_nl1@ruu.kr")
+        page.fill("#account", "csrevamp_vn1@teml.net")
         page.locator('button[data-log-id="next"]').click()
-        page.fill("#password", "mypages24@")
+        page.fill("#password", "csrevamp1!")
         page.locator('button[data-log-id="signin"]').click()
         page.wait_for_timeout(3000)
-        page.click('button[data-testid="test-button-notnow"]')
-        page.click('button[data-testid="test-button-notnow"]')
+        # "Not now" 버튼 처리
+        page.click('button[data-testid="test-button-notnow"]') # 첫 번째 버튼은 필수 클릭
         
-        page.wait_for_timeout(5000)#3초 대기
+        # 두 번째 "Not now" 버튼은 있을 때만 클릭 (선택 사항)
+        not_now_btn = page.locator('button[data-testid="test-button-notnow"]')
+        if not_now_btn.is_visible(timeout=2000):
+            not_now_btn.click()
+            print("두 번째 'Not now' 버튼 클릭 완료")
+        
+        page.wait_for_timeout(3000)#3초 대기
 
-        page.goto("https://www.samsung.com/nl/mypage/")
-        page.wait_for_timeout(5000)#5초 대기
+        page.goto("https://hshopfront.samsung.com/vn/mypage/")
+        page.wait_for_timeout(5000)#초 대기
 
         browser.close()
 # 이 파일을 직접 실행했을 떄만 main() 함수 실행
